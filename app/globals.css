@@ -3,6 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --brand-bg: #07080c;
+  --brand-ink: #e6e8ee;
+  --brand-primary: #2f49b8;
+  --brand-accent: #f0c53a;
+  --brand-muted: #0f1421;
+  --brand-card: #0b0f1a;
 }
 
 @theme inline {
@@ -10,6 +16,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-ink: var(--brand-ink);
+  --color-primary: var(--brand-primary);
+  --color-accent: var(--brand-accent);
+  --color-muted: var(--brand-muted);
+  --color-card: var(--brand-card);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +32,77 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--brand-bg);
+  color: var(--brand-ink);
+  font-family: var(--font-roboto), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.container {
+  max-width: 1200px;
+}
+
+.glow {
+  box-shadow: 0 0 40px rgba(47, 73, 184, 0.35), 0 0 80px rgba(240, 197, 58, 0.12);
+}
+
+.card {
+  background: linear-gradient(180deg, var(--brand-card), #0a1020);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+
+.description {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--brand-primary), #3b7bff);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, var(--brand-accent), #ffd768);
+  color: #1a1a1a;
+}
+
+.hero-gradient {
+  background: radial-gradient(60% 60% at 50% 10%, rgba(47, 73, 184, 0.45) 0%, rgba(47, 73, 184, 0) 60%),
+    radial-gradient(40% 40% at 80% 0%, rgba(240, 197, 58, 0.35) 0%, rgba(240, 197, 58, 0) 50%),
+    linear-gradient(180deg, #0a0f1e 0%, #07080c 100%);
+}
+
+.section-title {
+  color: #dfe6ff;
+}
+
+h1,
+h2,
+h3,
+.section-title {
+  font-family: var(--font-audiowide), var(--font-roboto), ui-sans-serif, system-ui;
+  letter-spacing: 0.02em;
+}
+
+.progress {
+  height: 8px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent));
+  box-shadow: 0 0 24px rgba(47, 73, 184, 0.4);
+  transition: width 200ms ease;
 }
