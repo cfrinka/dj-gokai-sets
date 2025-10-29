@@ -42,23 +42,22 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${roboto.variable} ${audiowide.variable} antialiased`} suppressHydrationWarning>
         <ToastRoot>
-        <header className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-black/40 border-b border-white/10">
-          <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-            <a href="/" className="flex items-center gap-3">
-              <img src="/logo-symbol.png" alt="DJ Gokai" className="h-16 w-16 object-contain" />
-            </a>
-            <div className="hidden md:flex items-center gap-6 text-sm text-white/80">
-              <nav className="flex items-center gap-6">
-                <a href="#sets" className="hover:text-white">Sets</a>
-                <a href="#about" className="hover:text-white">About</a>
-                <a href="#studio" className="hover:text-white">Studio</a>
-                <a href="#contact" className="pill px-4 py-2 hover:bg-white/10">Book</a>
-              </nav>
-              <AuthNav />
+          <header className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-black/40 border-b border-white/10">
+            <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+              <a href="/" className="flex items-center gap-3">
+                <img src="/logo-symbol.png" alt="DJ Gokai" className="h-16 w-16 object-contain" />
+              </a>
+              <div className="hidden md:flex items-center gap-6 text-sm text-white/80">
+                <nav className="flex items-center gap-6">
+                  <a href="#sets" className="hover:text-white">Sets</a>
+                  <a href="#about" className="hover:text-white">Sobre</a>
+                  <a href="#contact" className="pill px-4 py-2 hover:bg-white/10">Contratar</a>
+                </nav>
+                <AuthNav />
+              </div>
             </div>
-          </div>
-        </header>
-        {children}
+          </header>
+          {children}
         </ToastRoot>
         <footer className="mt-24 border-t border-white/10">
           <div className="container mx-auto px-6 py-10 text-sm text-white/60 flex flex-col md:flex-row items-center justify-between gap-4">

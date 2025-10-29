@@ -83,8 +83,15 @@ export default function Home() {
             </p>
           </div>
           <div className="flex gap-4">
-            <a href="mailto:booking@djgokai.com" className="btn-primary pill px-5 py-3 text-sm font-medium glow">Email</a>
-            <a href="#" className="pill px-5 py-3 text-sm">Baixar Press Kit</a>
+            <a
+              href="https://wa.me/5516981541659?text=Ol%C3%A1%2C%20tenho%20interesse%20em%20contratar%20o%20DJ%20Gokai%20para%20um%20evento."
+              target="_blank"
+              rel="noreferrer"
+              className="btn-primary pill px-5 py-3 text-sm font-medium glow"
+            >
+              WhatsApp
+            </a>
+            {/* <a href="#" className="pill px-5 py-3 text-sm">Baixar Press Kit</a> */}
           </div>
         </div>
 
