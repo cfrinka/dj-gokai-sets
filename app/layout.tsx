@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     url: "/",
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon.ico?v=3",
   },
 };
 
