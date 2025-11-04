@@ -512,11 +512,23 @@ function ReorderList({ sets, onDelete, onEdit, onReorder }: { sets: any[]; onDel
                 <button onClick={() => onEdit(s)} className="pill px-3 py-2 text-xs hover:bg-white/20">Edit</button>
                 <button onClick={() => onDelete(s.id, s.audioPath)} className="pill px-3 py-2 text-xs hover:bg-white/20">Delete</button>
                 {s.audioPath && (
-                  <a className="pill px-3 py-2 text-xs hover:bg-white/20" target="_blank" rel="noreferrer" href={"#"} onClick={async (e) => {
+                  <button className="pill px-3 py-2 text-xs hover:bg-white/20" onClick={async (e) => {
                     e.preventDefault();
-                    const url = await getDownloadURL(ref(storage, s.audioPath));
-                    window.open(url, "_blank");
-                  }}>Open File</a>
+                    try {
+                      const url = await getDownloadURL(ref(storage, s.audioPath));
+                      // Create a temporary anchor element to trigger download
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = s.audioPath.split('/').pop() || 'audio.mp3';
+                      link.target = '_blank';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    } catch (err: any) {
+                      console.error('Download error:', err);
+                      alert('Failed to download file. Please check Firebase Storage CORS settings.');
+                    }
+                  }}>Download</button>
                 )}
               </div>
             </div>
