@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Roboto, Audiowide } from "next/font/google";
 import "./globals.css";
-import AuthNav from "@/components/AuthNav";
+import { InstagramIcon } from "lucide-react";
 import ToastRoot from "@/components/ToastRoot";
 
 const roboto = Roboto({
@@ -53,7 +53,6 @@ export default function RootLayout({
                   <a href="#about" className="hover:text-white">Sobre</a>
                   <a href="#contact" className="pill px-4 py-2 hover:bg-white/10">Contratar</a>
                 </nav>
-                <AuthNav />
               </div>
             </div>
           </header>
@@ -61,11 +60,11 @@ export default function RootLayout({
         </ToastRoot>
         <footer className="mt-24 border-t border-white/10">
           <div className="container mx-auto px-6 py-10 text-sm text-white/60 flex flex-col md:flex-row items-center justify-between gap-4">
-            <span> {new Date().getFullYear()} DJ Gokai. All rights reserved.</span>
+            <span> {new Date().getFullYear()} DJ Gokai. Todos os direitos reservados.</span>
             <div className="flex items-center gap-4">
-              <a href="#" aria-label="Instagram" className="hover:text-white">IG</a>
-              <a href="#" aria-label="SoundCloud" className="hover:text-white">SC</a>
-              <a href="#" aria-label="YouTube" className="hover:text-white">YT</a>
+              <a href="https://instagram.com/djgokai" target="_blank" rel="noreferrer" aria-label="Instagram" className="hover:text-white flex items-center">
+                <InstagramIcon size={18} />
+              </a>
             </div>
           </div>
         </footer>

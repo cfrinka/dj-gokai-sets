@@ -1,28 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { auth, db, storage } from "@/lib/firebase";
+import { useEffect, useRef, useState } from "react";
+import { db, storage } from "@/lib/firebase";
 import { useToast } from "@/components/ToastRoot";
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { collection, addDoc, deleteDoc, doc, getDocs, orderBy, query } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 
 function useAuth() {
-  const [user, setUser] = useState<null | { uid: string; displayName?: string | null; email?: string | null }>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u ? { uid: u.uid, displayName: u.displayName, email: u.email } : null);
-      setLoading(false);
-    });
-    return () => unsub();
+    // Check if user is already authenticated in session storage
+    const authStatus = sessionStorage.getItem('admin_authenticated');
+    setIsAuthenticated(authStatus === 'true');
+    setLoading(false);
   }, []);
-  return { user, loading };
+  
+  return { isAuthenticated, setIsAuthenticated, loading };
 }
 
 export default function AdminPage() {
-  const { user, loading } = useAuth();
+  const { isAuthenticated, setIsAuthenticated, loading } = useAuth();
   const toast = useToast();
+  const [password, setPassword] = useState("");
   const [form, setForm] = useState({ title: "", description: "" });
   const [file, setFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -31,9 +32,11 @@ export default function AdminPage() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [sets, setSets] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-  const provider = useMemo(() => new GoogleAuthProvider(), []);
+  const [editingSet, setEditingSet] = useState<any | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const editAudioInputRef = useRef<HTMLInputElement | null>(null);
+  const editImageInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -44,20 +47,22 @@ export default function AdminPage() {
     load();
   }, [refreshKey]);
 
-  const allowedEmails = useMemo(() => {
-    const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || "";
-    return raw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-  }, []);
-
-  const handleLogin = async () => {
-    await signInWithPopup(auth, provider);
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+    
+    if (password === adminPassword) {
+      sessionStorage.setItem('admin_authenticated', 'true');
+      setIsAuthenticated(true);
+      setPassword("");
+    } else {
+      toast.error("Incorrect password");
+    }
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_authenticated');
+    setIsAuthenticated(false);
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -160,32 +165,134 @@ export default function AdminPage() {
     }
   };
 
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSet) return;
+    setBusy(true);
+    setStartedAt(Date.now());
+    try {
+      const updates: any = {
+        title: editingSet.title,
+        description: editingSet.description,
+      };
+
+      // Upload new audio file if provided
+      if (file) {
+        // Delete old audio file
+        if (editingSet.audioPath) {
+          try {
+            await deleteObject(ref(storage, editingSet.audioPath));
+          } catch (err) {
+            console.warn("Could not delete old audio file:", err);
+          }
+        }
+
+        const path = `sets/${Date.now()}-${file.name}`;
+        const storageRef = ref(storage, path);
+        await new Promise<void>((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, file);
+          task.on(
+            "state_changed",
+            (snap) => {
+              const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+              setProgress((p) => ({ ...p, audio: pct }));
+            },
+            (err) => reject(err),
+            () => resolve()
+          );
+        });
+
+        // Get duration from new file
+        const durationText = await new Promise<string>((resolve) => {
+          try {
+            const audio = new Audio();
+            audio.preload = "metadata";
+            audio.src = URL.createObjectURL(file);
+            audio.onloadedmetadata = () => {
+              const d = Math.max(0, audio.duration || 0);
+              const mins = Math.floor(d / 60);
+              const secs = Math.floor(d % 60).toString().padStart(2, "0");
+              resolve(`${mins}:${secs}`);
+            };
+            audio.onerror = () => resolve(editingSet.duration || "--");
+          } catch {
+            resolve(editingSet.duration || "--");
+          }
+        });
+
+        updates.audioPath = path;
+        updates.duration = durationText;
+      }
+
+      // Upload new image file if provided
+      if (imageFile) {
+        const imgPath = `sets/images/${Date.now()}-${imageFile.name}`;
+        const imgRef = ref(storage, imgPath);
+        let imageUrl = "";
+        await new Promise<void>((resolve, reject) => {
+          const task = uploadBytesResumable(imgRef, imageFile);
+          task.on(
+            "state_changed",
+            (snap) => {
+              const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+              setProgress((p) => ({ ...p, image: pct }));
+            },
+            (err) => reject(err),
+            async () => {
+              imageUrl = await getDownloadURL(imgRef);
+              resolve();
+            }
+          );
+        });
+        updates.imageUrl = imageUrl;
+      }
+
+      await import("firebase/firestore").then(({ updateDoc, doc }) => 
+        updateDoc(doc(db, "sets", editingSet.id), updates)
+      );
+
+      setFile(null);
+      setImageFile(null);
+      setProgress({});
+      setEditingSet(null);
+      if (editAudioInputRef.current) editAudioInputRef.current.value = "";
+      if (editImageInputRef.current) editImageInputRef.current.value = "";
+      setRefreshKey((x) => x + 1);
+      toast.success("Set updated successfully");
+    } catch (err: any) {
+      toast.error(err?.message || "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <div className="container mx-auto px-6 py-16">Loading…</div>;
 
-  if (!user)
+  if (!isAuthenticated)
     return (
       <div className="container mx-auto px-6 py-16 flex flex-col items-center gap-6">
         <h1 className="text-2xl font-semibold">Admin Login</h1>
-        <button onClick={handleLogin} className="btn-primary pill px-6 py-3 glow">Sign in with Google</button>
+        <form onSubmit={handleLogin} className="flex flex-col gap-4 w-full max-w-sm">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter admin password"
+            className="pill px-4 py-3 bg-white/10 text-white placeholder:text-white/50"
+            autoFocus
+          />
+          <button type="submit" className="btn-primary pill px-6 py-3 glow">
+            Login
+          </button>
+        </form>
       </div>
     );
-
-  if (allowedEmails.length && !allowedEmails.includes((user.email || "").toLowerCase())) {
-    return (
-      <div className="container mx-auto px-6 py-16 text-center">
-        <h1 className="text-2xl font-semibold mb-3">Not authorized</h1>
-        <p className="text-white/70 mb-6">Your account does not have access to this page.</p>
-        <button onClick={handleLogout} className="pill px-4 py-2">Sign out</button>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto px-6 py-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-semibold">Manage Sets</h1>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-white/70">{user.email}</span>
           <button onClick={handleLogout} className="pill px-3 py-2">Sign out</button>
         </div>
       </div>
@@ -226,8 +333,82 @@ export default function AdminPage() {
         </div>
       </form>
 
+      {/* Edit Modal */}
+      {editingSet && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setEditingSet(null)}>
+          <div className="card p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Edit Set</h2>
+              <button onClick={() => setEditingSet(null)} className="pill px-3 py-2 text-sm">Close</button>
+            </div>
+            <form onSubmit={handleEdit} className="grid gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <label className="grid gap-2 text-sm">
+                  <span>Title</span>
+                  <input 
+                    value={editingSet.title} 
+                    onChange={(e) => setEditingSet({ ...editingSet, title: e.target.value })} 
+                    className="pill px-3 py-2 bg-white/10 text-white/90" 
+                    required 
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Duration (auto-calculated if audio changed)</span>
+                  <input 
+                    value={editingSet.duration || ""} 
+                    className="pill px-3 py-2 bg-white/10 text-white/50" 
+                    disabled 
+                  />
+                </label>
+              </div>
+              <label className="grid gap-2 text-sm">
+                <span>Description</span>
+                <textarea 
+                  value={editingSet.description} 
+                  onChange={(e) => setEditingSet({ ...editingSet, description: e.target.value })} 
+                  className="pill px-3 py-2 bg-white/10 text-white/90 min-h-[80px]" 
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Replace Audio File (optional)</span>
+                <input 
+                  ref={editAudioInputRef}
+                  type="file" 
+                  accept="audio/*" 
+                  onChange={(e) => setFile(e.target.files?.[0] || null)} 
+                  className="pill px-3 py-2 bg-white/10 text-white/90 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-sm file:bg-white/20 file:text-white hover:file:bg-white/30" 
+                />
+                {editingSet.audioPath && <span className="text-xs text-white/50">Current: {editingSet.audioPath.split('/').pop()}</span>}
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Replace Cover Image (optional)</span>
+                <input 
+                  ref={editImageInputRef}
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => setImageFile(e.target.files?.[0] || null)} 
+                  className="pill px-3 py-2 bg-white/10 text-white/90 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-sm file:bg-white/20 file:text-white hover:file:bg-white/30" 
+                />
+                {editingSet.imageUrl && (
+                  <img src={editingSet.imageUrl} alt="Current" className="w-32 h-32 object-cover rounded" />
+                )}
+              </label>
+              {busy && (
+                <div className="grid gap-3">
+                  {progress.audio !== undefined && <ProgressWithEta label="Audio Upload" pct={progress.audio} startedAt={startedAt} />}
+                  {progress.image !== undefined && <ProgressWithEta label="Image Upload" pct={progress.image} startedAt={startedAt} />}
+                </div>
+              )}
+              <button type="submit" className="btn-primary pill px-6 py-3 glow" disabled={busy}>
+                {busy ? "Updating…" : "Update Set"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Drag-and-drop ordering */}
-      <ReorderList sets={sets} onDelete={handleDelete} onReorder={setSets} />
+      <ReorderList sets={sets} onDelete={handleDelete} onEdit={setEditingSet} onReorder={setSets} />
     </div>
   );
 }
@@ -257,7 +438,7 @@ function ProgressWithEta({ label, pct, startedAt }: { label: string; pct: number
   );
 }
 
-function ReorderList({ sets, onDelete, onReorder }: { sets: any[]; onDelete: (id: string, audioPath?: string) => Promise<void> | void; onReorder: (s: any[]) => void }) {
+function ReorderList({ sets, onDelete, onEdit, onReorder }: { sets: any[]; onDelete: (id: string, audioPath?: string) => Promise<void> | void; onEdit: (set: any) => void; onReorder: (s: any[]) => void }) {
   const [saving, setSaving] = useState(false);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -315,7 +496,7 @@ function ReorderList({ sets, onDelete, onReorder }: { sets: any[]; onDelete: (id
               </div>
               <h3 className="font-semibold">{s.title}</h3>
               {s.description && <p className="text-white/70 text-sm mt-1 line-clamp-2">{s.description}</p>}
-              <div className="mt-4 flex items-center gap-3">
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
                 <button
                   className="drag-handle pill px-3 py-2 text-xs"
                   draggable
@@ -328,9 +509,10 @@ function ReorderList({ sets, onDelete, onReorder }: { sets: any[]; onDelete: (id
                     <path d="M9 5h-2v2h2V5zm0 6H7v2h2v-2zm0 6H7v2h2v-2zM17 5h-2v2h2V5zm0 6h-2v2h2v-2zm0 6h-2v2h2v-2z" fill="currentColor" />
                   </svg>
                 </button>
-                <button onClick={() => onDelete(s.id, s.audioPath)} className="pill px-3 py-2 text-xs">Delete</button>
+                <button onClick={() => onEdit(s)} className="pill px-3 py-2 text-xs hover:bg-white/20">Edit</button>
+                <button onClick={() => onDelete(s.id, s.audioPath)} className="pill px-3 py-2 text-xs hover:bg-white/20">Delete</button>
                 {s.audioPath && (
-                  <a className="pill px-3 py-2 text-xs" target="_blank" rel="noreferrer" href={"#"} onClick={async (e) => {
+                  <a className="pill px-3 py-2 text-xs hover:bg-white/20" target="_blank" rel="noreferrer" href={"#"} onClick={async (e) => {
                     e.preventDefault();
                     const url = await getDownloadURL(ref(storage, s.audioPath));
                     window.open(url, "_blank");
